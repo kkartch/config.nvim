@@ -21,7 +21,8 @@ return { -- Autocompletion
         {
           'rafamadriz/friendly-snippets',
           config = function()
-            require('luasnip.loaders.from_vscode').lazy_load()
+            -- require('luasnip.loaders.from_vscode').lazy_load()
+            require('luasnip.loaders.from_vscode').load { include = { 'lua', 'elixir', 'eelixir' } }
           end,
         },
       },
@@ -47,6 +48,11 @@ return { -- Autocompletion
         end,
       },
       completion = { completeopt = 'menu,menuone,noinsert' },
+
+      window = {
+        completion = cmp.config.window.bordered(),
+        documentation = cmp.config.window.bordered(),
+      },
 
       -- For an understanding of why these mappings were
       -- chosen, you will need to read `:help ins-completion`
@@ -112,5 +118,8 @@ return { -- Autocompletion
         { name = 'path' },
       },
     }
+
+    -- require('luasnip.loaders.from_snipmate').load { include = { 'lua', 'elixir', 'eelixir' } }
+    -- require('luasnip.loaders.from_vscode').lazy_load()
   end,
 }

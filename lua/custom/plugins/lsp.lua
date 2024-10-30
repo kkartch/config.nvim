@@ -29,6 +29,15 @@ return {
       -- Allows extra capabilities provided by nvim-cmp
       'hrsh7th/cmp-nvim-lsp',
     },
+    opts = function(_, opts)
+      opts.diagnostics = {
+        float = {
+          border = 'rounded',
+        },
+      }
+
+      return opts
+    end,
     config = function()
       -- Brief aside: **What is LSP?**
       --

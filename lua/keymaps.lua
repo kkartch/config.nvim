@@ -5,7 +5,9 @@ vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 -- Diagnostic keymaps
 vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, { desc = 'Goto previous [D]iagnostic message' })
 vim.keymap.set('n', ']d', vim.diagnostic.goto_next, { desc = 'Goto next [D]iagnostic message' })
-vim.keymap.set('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Show diagnostic [E]rror message' })
+vim.keymap.set('n', '<leader>e', function()
+  vim.diagnostic.open_float { border = 'rounded' }
+end, { desc = 'Show diagnostic [E]rror message' })
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
@@ -30,7 +32,7 @@ vim.keymap.set('n', '<leader>gg', ':LazyGit<CR>')
 
 -- Window resizing
 vim.keymap.set('n', '<CR>', '<c-w>_<c-w>|')
-vim.keymap.set('n', '<leader>+', '<c-w>=')
+vim.keymap.set('n', '<leader>=', '<c-w>=')
 
 -- Linting
 vim.keymap.set('n', '<leader>l', '<CMD>lua require("lint").try_lint("credo")<CR>')
@@ -43,6 +45,3 @@ vim.keymap.set('n', '<leader>tc', ':tabc<cr>', { desc = '[T]ab [C]lose' })
 
 -- Oil
 vim.keymap.set('n', '-', '<CMD>Oil<CR>', { desc = 'Open parent directory' })
-
--- Neo Tree
-vim.keymap.set('n', '|', ':Neotree close<cr>', { desc = 'Close Neotree panel' })
