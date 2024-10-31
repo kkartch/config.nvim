@@ -12,6 +12,7 @@ return {
       -- Add more filetypes and their respective linters here
     }
 
+    -- This should be filetype specific
     vim.api.nvim_create_autocmd({ 'BufWritePost' }, {
       callback = function()
         require('lint').try_lint 'credo'
