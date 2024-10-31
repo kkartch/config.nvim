@@ -205,6 +205,12 @@ return {
             },
           },
         },
+
+        ts_ls = {},
+
+        emmet_language_server = {
+          filetypes = { 'css', 'html', 'javascript', 'javascriptreact', 'less', 'sass', 'scss', 'typescriptreact', 'heex', 'elixir' },
+        },
       }
 
       -- Ensure the servers and tools above are installed
