@@ -30,15 +30,9 @@ vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right win
 vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
--- LazyGit
-vim.keymap.set('n', '<leader>gg', ':LazyGit<CR>')
-
 -- Window resizing
 vim.keymap.set('n', '<CR>', '<c-w>_<c-w>|')
 vim.keymap.set('n', '<leader>=', '<c-w>=')
-
--- Linting
-vim.keymap.set('n', '<leader>l', '<CMD>lua require("lint").try_lint("credo")<CR>')
 
 -- Tab navigation
 vim.keymap.set('n', '<leader>tn', ':tabnew<cr>', { desc = 'Create [T]ab [N]ew' })
@@ -46,5 +40,14 @@ vim.keymap.set('n', '<leader>tl', ':tabnext<cr>', { desc = 'Goto [T]ab to the [L
 vim.keymap.set('n', '<leader>th', ':tabprevious<cr>', { desc = 'Goto [T]ab to the right using [H] motion' })
 vim.keymap.set('n', '<leader>tc', ':tabc<cr>', { desc = '[T]ab [C]lose' })
 
+-- LazyGit
+vim.keymap.set('n', '<leader>gg', ':LazyGit<CR>')
+
+-- Linting
+vim.keymap.set('n', '<leader>l', '<CMD>lua require("lint").try_lint("credo")<CR>')
+
 -- Oil
 vim.keymap.set('n', '-', '<CMD>Oil<CR>', { desc = 'Open parent directory' })
+
+-- Dadbod
+vim.keymap.set('n', '<leader>db', ':DBUI<CR>')
