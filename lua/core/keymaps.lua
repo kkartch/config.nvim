@@ -31,8 +31,8 @@ vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower win
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
 -- Window resizing
-vim.keymap.set('n', '<CR>', '<c-w>_<c-w>|')
-vim.keymap.set('n', '<leader>=', '<c-w>=')
+vim.keymap.set('n', '<leader>M', '<c-w>_<c-w>|')
+vim.keymap.set('n', '<leader>m', '<c-w>=')
 
 -- Tab navigation
 vim.keymap.set('n', '<leader>tn', ':tabnew<cr>', { desc = 'Create [T]ab [N]ew' })
