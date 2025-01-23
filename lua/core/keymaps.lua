@@ -51,3 +51,9 @@ vim.keymap.set('n', '-', '<CMD>Oil<CR>', { desc = 'Open parent directory' })
 
 -- Dadbod
 vim.keymap.set('n', '<leader>db', ':DBUI<CR>')
+
+-- Yank current file filename to the @" register and make available in clipboard
+vim.keymap.set('n', '<leader>yf', ':let @" = expand("%")', { desc = 'Yank current file relative filename' })
+
+-- HTML
+vim.keymap.set('n', 'ghc', 'yyp^a/<esc>f dt>')
