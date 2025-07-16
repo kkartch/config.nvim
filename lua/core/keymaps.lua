@@ -57,3 +57,6 @@ vim.keymap.set('n', '<leader>yf', ':let @" = expand("%")', { desc = 'Yank curren
 
 -- HTML
 vim.keymap.set('n', 'ghc', 'yyp^a/<esc>f dt>')
+
+-- Tailwind CSS
+vim.keymap.set('n', '<leader>tt', ':TailwindConcealToggle<CR>')
