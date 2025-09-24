@@ -76,7 +76,9 @@ return {
           copy_filepath = function(state)
             local node = state.tree:get_node()
             local filepath = node:get_id()
-            vim.fn.setreg('+', filepath)
+            local modify = vim.fn.fnamemodify
+
+            vim.fn.setreg('+', modify(filepath, ':.'))
             vim.notify(('Copied: `%s`'):format(filepath))
           end,
         },
