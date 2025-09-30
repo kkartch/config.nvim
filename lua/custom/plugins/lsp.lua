@@ -116,7 +116,7 @@ return {
           --
           -- When you move your cursor, the highlights will be cleared (the second autocommand).
           local client = vim.lsp.get_client_by_id(event.data.client_id)
-          if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
+          if client and client:supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
             local highlight_augroup = vim.api.nvim_create_augroup('kickstart-lsp-highlight', { clear = false })
             vim.api.nvim_create_autocmd({ 'CursorHold', 'CursorHoldI' }, {
               buffer = event.buf,
@@ -143,7 +143,7 @@ return {
           -- code, if the language server you are using supports them
           --
           -- This may be unwanted, since they displace some of your code
-          if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
+          if client and client:supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
             map('<leader>th', function()
               vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled { bufnr = event.buf })
             end, '[T]oggle Inlay [H]ints')
@@ -168,44 +168,24 @@ return {
       -- Set global LSP configuration
       vim.lsp.config('*', {
         capabilities = capabilities,
-        root_markers = { '.git' },
       })
 
-      -- Configure specific language servers using the new vim.lsp.config API
-      -- Note: Mason package names might differ from LSP server names
+      -- List of language servers to enable
+      -- Configuration for each server is in lua/lsp/{server_name}.lua
       local servers = {
-        {
-          name = 'elixir_ls',
-          mason_name = 'elixir-ls',
-          config = {}
-        },
-        {
-          name = 'lua_ls',
-          mason_name = 'lua-language-server',
-          config = {
-            settings = {
-              Lua = {
-                completion = {
-                  callSnippet = 'Replace',
-                },
-                -- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
-                -- diagnostics = { disable = { 'missing-fields' } },
-              },
-            },
-          }
-        },
-        {
-          name = 'ts_ls',
-          mason_name = 'typescript-language-server',
-          config = {}
-        },
-        {
-          name = 'emmet_language_server',
-          mason_name = 'emmet-language-server',
-          config = {
-            filetypes = { 'css', 'html', 'javascript', 'javascriptreact', 'less', 'sass', 'scss', 'typescriptreact', 'heex', 'elixir' },
-          }
-        },
+        'elixirls',
+        'lua_ls',
+        'tsserver',
+        'emmet_language_server',
+      }
+
+      -- Mason package names (for automatic installation)
+      local mason_packages = {
+        'elixir-ls',
+        'lua-language-server',
+        'typescript-language-server',
+        'emmet-language-server',
+        'stylua', -- Used to format Lua code
       }
 
       -- Ensure the servers and tools above are installed
@@ -215,31 +195,19 @@ return {
       --
       --  You can press `g?` for help in this menu.
       require('mason').setup()
+      require('mason-tool-installer').setup { ensure_installed = mason_packages }
 
-      -- You can add other tools here that you want Mason to install
-      -- for you, so that they are available from within Neovim.
-      local mason_packages = {}
-      for _, server in pairs(servers) do
-        table.insert(mason_packages, server.mason_name)
-      end
-
-      local ensure_installed = mason_packages
-      vim.list_extend(ensure_installed, {
-        'stylua', -- Used to format Lua code
-      })
-      require('mason-tool-installer').setup { ensure_installed = ensure_installed }
-
-      -- Configure and enable language servers using the new API
-      for _, server in pairs(servers) do
-        local name, config = server.name, server.config
-
-        -- Set server-specific configuration if provided
-        if config and next(config) then
-          vim.lsp.config[name] = config
+      -- Enable language servers using the new native API
+      -- Load and set configurations from lua/lsp/{server_name}.lua
+      for _, server in ipairs(servers) do
+        -- Load the server configuration file
+        local ok, config = pcall(require, 'lsp.' .. server)
+        if ok then
+          -- Set the configuration
+          vim.lsp.config[server] = config
         end
-
         -- Enable the server
-        vim.lsp.enable(name)
+        vim.lsp.enable(server)
       end
     end,
   },
