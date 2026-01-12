@@ -21,7 +21,31 @@ return { -- Collection of various small independent plugins/modules
     --  and try some other statusline plugin
     local statusline = require 'mini.statusline'
     -- set use_icons to true if you have a Nerd Font
-    statusline.setup { use_icons = vim.g.have_nerd_font, { content = { active = 'f S' } } }
+    statusline.setup { use_icons = vim.g.have_nerd_font }
+
+    -- Limit git branch name to 10 characters
+    ---@diagnostic disable-next-line: duplicate-set-field
+    statusline.section_git = function(args)
+      local buf_id = args and args.buf or 0
+      local head = vim.b[buf_id].minigit_summary_string or vim.b.gitsigns_head or ''
+      if head == '' then
+        return ''
+      end
+      if #head > 10 then
+        head = head:sub(1, 10)
+      end
+      return head
+    end
+
+    -- Limit filename path to 75 characters
+    ---@diagnostic disable-next-line: duplicate-set-field
+    statusline.section_filename = function()
+      local filename = vim.fn.expand '%:~:.'
+      if #filename > 75 then
+        filename = '...' .. filename:sub(-72)
+      end
+      return filename
+    end
 
     -- You can configure sections in the statusline by overriding their
     -- default behavior. For example, here we set the section for
