@@ -53,7 +53,23 @@ vim.keymap.set('n', '-', '<CMD>Oil<CR>', { desc = 'Open parent directory' })
 vim.keymap.set('n', '<leader>db', ':DBUI<CR>')
 
 -- Yank current file filename to the @" register and make available in clipboard
-vim.keymap.set('n', '<leader>yf', ':let @" = expand("%")', { desc = 'Yank current file relative filename' })
+vim.keymap.set('n', '<leader>yf', function()
+  local filename = vim.fn.expand('%')
+  vim.fn.setreg('"', filename)
+  vim.fn.setreg('+', filename)
+  print('Yanked: ' .. filename)
+end, { desc = 'Yank current file relative filename' })
+
+-- Open the current file in the OS default application
+vim.keymap.set("n", "<leader>of", function()
+  vim.cmd('!open "' .. vim.fn.expand('%') .. '"')
+end, { desc = "Open current file in OS default application" })
+
+-- Open the current file in VS Code at the current cursor position
+vim.keymap.set("n", "<leader>oc", function()
+  local r, c = unpack(vim.api.nvim_win_get_cursor(0))
+  vim.cmd('!code -g "' .. vim.fn.expand('%') .. ':' .. r .. ':' .. c .. '"')
+end, { desc = "Open current file in VS Code" })
 
 -- HTML
 vim.keymap.set('n', 'ghc', 'yyp^a/<esc>f dt>')
