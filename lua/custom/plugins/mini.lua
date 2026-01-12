@@ -37,12 +37,15 @@ return { -- Collection of various small independent plugins/modules
       return head
     end
 
-    -- Limit filename path to 75 characters
+    -- Limit filename path to 75 characters and show modified indicator
     ---@diagnostic disable-next-line: duplicate-set-field
     statusline.section_filename = function()
       local filename = vim.fn.expand '%:~:.'
       if #filename > 75 then
         filename = '...' .. filename:sub(-72)
+      end
+      if vim.bo.modified then
+        filename = filename .. ' [+]'
       end
       return filename
     end
