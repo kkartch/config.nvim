@@ -51,10 +51,8 @@ Add four Postgres helpers via `g:db_ui_table_helpers`. No plugin change, no cust
 dependency. The existing four connections and eleven saved queries are untouched, as are the six
 built-in helpers.
 
-A direct keymap on the hovered table was considered and dropped as redundant once helpers cover the
-need. It remains feasible if wanted later: `db_ui#drawer#get()` is public and returns an instance whose
-`content` list is indexed by line number, each item carrying `label` (the table name) and
-`dbui_db_key_name`. Noted here so the option does not have to be rediscovered.
+A direct keymap on the hovered table was initially dropped as redundant. That turned out to be wrong —
+see *Round two* below — and it was added afterwards.
 
 ## Changes
 
@@ -129,6 +127,69 @@ using the `public.concepts` table.
 
 Note that `pg_isready` without `-h` reports the server as down, because it probes the Unix socket that
 the Docker container does not provide. Use `pg_isready -h localhost`.
+
+## Round two: removing the intermediate buffer
+
+The helpers alone did not fix the interaction. Selecting one opens a **SQL buffer** containing the
+generated query, which then has to be written to execute, with results arriving in a third pane. The
+objection was never the helper content; it was having to pass through a buffer at all.
+
+Two changes address this.
+
+### `g:db_ui_auto_execute_table_helpers = 1`
+
+A built-in option, default `0`, documented as "opening any table helper will automatically write the
+query and execute it." This removes the manual write from the drawer's own expand-and-select path. The
+SQL buffer still opens on that path — the option controls execution, not buffer creation
+(`autoload/db_ui/query.vim:118` opens it unconditionally).
+
+### Drawer keymaps that skip the buffer entirely
+
+Buffer-local mappings on `FileType dbui`, resolving the table under the cursor and running the helper
+straight to a `.dbout` buffer:
+
+| Key | Action |
+|---|---|
+| `E` | Pick any helper for this table (`vim.ui.select`, rendered by telescope-ui-select) |
+| `D` | Describe (`\d+`) |
+| `I` | Index Detail |
+| `Z` | Size & Rows |
+
+`E`, `D`, `I`, `Z` are unused by dadbod-ui's own `ftplugin/dbui.vim`, and being buffer-local they
+cannot collide with the global `<leader>d*` maps.
+
+**Mechanism.** `db_ui#drawer#get()` is public and returns an instance whose `content` list is indexed
+by line number. Table nodes carry:
+
+```
+type  = schemas->items->{schema}->tables->items->{table}
+label = {table}
+dbui_db_key_name = key into drawer.dbui.dbs
+```
+
+Schema and table are matched out of `type` rather than read from `label`, because schema nodes suffix
+their label with a count (`public (51)`). Placeholder substitution mirrors
+`autoload/db_ui/query.vim:134-138` exactly, so a helper behaves identically whichever way it is run.
+Substitutions use replacement *functions* rather than strings, since a table name containing `%` would
+otherwise be misinterpreted by `gsub`.
+
+Execution is `db#execute_command('', 0, -1, -1, url .. ' ' .. content)`, which was verified to create a
+`.dbout` buffer and no SQL buffer.
+
+**Single source of truth.** Both the keymaps and the drawer's child nodes read
+`db_ui#table_helpers#get(scheme)`. Anything added to `g:db_ui_table_helpers` later is automatically
+available to both, with no second registration.
+
+### Verified
+
+| Check | Result |
+|---|---|
+| Multi-line helper via `db#execute_command` | pass — Index Detail, 14 lines |
+| Meta-commands (`\set`/`\pset`) survive that path | pass — DDL output clean |
+| `D` on a table node | pass — `\d+` for `public.about_edges`, **dbout only, no SQL buffer** |
+| `D` on a non-table node | pass — warns "Put the cursor on a table", no error |
+| `E` picker | pass — prompt `Helpers for public.ai_prompt_logs`, all 10 helpers offered |
+| `E` → DDL | pass — `CREATE TABLE` output, dbout only |
 
 ## Out of scope
 
