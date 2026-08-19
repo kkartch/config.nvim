@@ -173,7 +173,7 @@ return {
       -- List of language servers to enable
       -- Configuration for each server is in lua/lsp/{server_name}.lua
       local servers = {
-        'elixirls',
+        'expert',
         'lua_ls',
         'tsserver',
         'emmet_language_server',
@@ -181,7 +181,7 @@ return {
 
       -- Mason package names (for automatic installation)
       local mason_packages = {
-        'elixir-ls',
+        'expert',
         'lua-language-server',
         'typescript-language-server',
         'emmet-language-server',

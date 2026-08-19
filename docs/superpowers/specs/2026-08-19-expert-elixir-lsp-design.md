@@ -1,7 +1,7 @@
 # Replace ElixirLS with Expert
 
 **Date:** 2026-08-19
-**Status:** Approved design, pending implementation
+**Status:** Implemented 2026-08-19. See *Implementation results* at the end.
 
 ## Problem
 
@@ -92,16 +92,24 @@ The existing `BufWritePost` autocommand runs `try_lint 'credo'` unconditionally,
 Fix: call `require('lint').try_lint()` with no argument. nvim-lint then dispatches on the buffer's
 filetype via the `linters_by_ft` table directly above it.
 
-> **Decision to confirm at review.** This is the idiomatic fix and repairs the table's intent,
-> but it is a behavior change beyond just gating credo: `luacheck`, `flake8`, `eslint`,
-> `golangci-lint`, and `rubocop` are all configured in `linters_by_ft` and have never actually run.
-> After this change they will, on save, for their filetypes.
->
-> Alternative, if that is unwanted: keep the call as `try_lint 'credo'` and gate the autocommand
-> with `pattern = { '*.ex', '*.exs', '*.heex' }`, leaving the other linters dormant.
->
-> Recommendation: take the bare `try_lint()`. If missing linter binaries produce notification noise,
-> narrow it then.
+**Resolved during implementation — narrowed as anticipated.** A bare `try_lint()` proved unsafe:
+`nvim-lint` calls `vim.notify(..., ERROR)` on a failed spawn (`lint.lua:437`, guarded only by
+`opts.ignore_errors`), and none of `luacheck`, `flake8`, `eslint`, `golangci-lint`, or `rubocop` are
+installed on this machine. Bare dispatch would therefore raise an error popup on every `.ts`, `.lua`,
+and `.py` save.
+
+Final form filters `linters_by_ft` for the buffer's filetype down to linters whose command is
+actually executable, and calls `try_lint(available)` only when that list is non-empty. Missing tools
+are skipped silently and begin working on their own once installed.
+
+Two details this surfaced:
+
+- `credo`'s command is `mix`, not a `credo` binary — so Elixir linting is unaffected and continues to
+  work. (The pre-existing autocommand was invoking `mix credo` on *every* save of *every* filetype,
+  including in directories with no `mix.exs`.)
+- `eslint` defines `cmd` as a *function* that resolves a project-local `node_modules/.bin/eslint`, so
+  the filter must call it before testing. Passing a function to `vim.fn.executable()` raises
+  `E1174: String required for argument 1`.
 
 ### 6. Mason state
 
@@ -153,3 +161,52 @@ task complete.
 - [Per-project Elixir versions](https://expert-lsp.org/docs/features/per_project_elixir/)
 - [Announcing the official Elixir Language Server team](https://elixir-lang.org/blog/2024/08/15/welcome-elixir-language-server-team/)
 - [Canonical `lsp/expert.lua` in nvim-lspconfig](https://github.com/neovim/nvim-lspconfig/blob/master/lsp/expert.lua)
+
+
+## Implementation results
+
+All file changes applied; Mason registry updated to `2026-08-19-leafy-zipper`, `expert` **v0.1.8**
+installed (`expert_darwin_arm64`, native Mach-O arm64), `elixir-ls` uninstalled. No `elixirls` or
+`elixir-ls` references remain in any Lua file.
+
+Verified headless against `~/src/bn` (Phoenix, 39 deps fetched, global toolchain):
+
+| Check | Result |
+|---|---|
+| Expert attaches to `.ex` | pass — sole client on the buffer |
+| `root_dir` | pass — `/Users/kyle/src/bn`, the repo root |
+| Cross-file, same project (`Bn.Repo`) | **pass** — `lib/bn/repo.ex` |
+| Hex dependency (`Phoenix.PubSub`) | **pass** — `deps/phoenix_pubsub/lib/phoenix/pubsub.ex` |
+| Macro: `use BnWeb, :controller` | **pass** — `lib/bn_web.ex:1` |
+| Macro: `render/3` via that `use` | **pass** — `deps/phoenix/lib/phoenix/controller.ex:937` |
+| Macro: `pipe_through` | **pass** — `deps/phoenix/lib/phoenix/router.ex:923` |
+| Scope-relative alias `PageController` | **pass** — `controllers/page_controller.ex:1` |
+| Stdlib (`Supervisor`, `Application`) | **fail — known upstream gap, see below** |
+| `conform` still formats Elixir | pass — `mix` |
+| Emmet no longer attaches to `.ex` | pass |
+
+Three of the four reported symptoms are fixed.
+
+### Stdlib navigation is a documented Expert limitation
+
+Probing both `textDocument/definition` and `textDocument/hover` at four stdlib positions
+(`Supervisor`, `Supervisor.start_link`, `Application`, `Application.get_env`) returns **hover for all
+four and a definition for none**. Expert resolves these symbols; it declines to return a location.
+
+This is not a misconfiguration, a cursor-position problem, or missing source — Elixir's `.ex` sources
+are present at `~/.asdf/installs/elixir/1.18.1-otp-27/lib/elixir/lib/` (246 files). Expert's own
+[Go to Definition docs](https://expert-lsp.org/docs/features/go_to_definition/) state the feature
+covers project and dependency code and "does not yet support navigating to definitions from the
+standard library." Expect this to close in a future Expert release; nothing to do here.
+
+### Unrelated blocker found in `portal.pdq.com`
+
+That project pins `elixir 1.16.2-otp-26` / `erlang 26.2.2` in its `.tool-versions`, and **neither is
+installed** — asdf has only Elixir 1.17.2/1.17.3/1.18.1 and Erlang 27.x/28.x. Running `elixir` in
+that directory fails with "No version is set for command elixir."
+
+So no language server can build that project today, and Expert will not change that. If Elixir
+navigation was being judged there, this is the actual root cause. The fix is `asdf install` for the
+pinned versions, or repointing the pin at an installed one — a decision for the repository owner, out
+of scope here. Verification step 5 (per-project engine rebuild across a version boundary) is
+therefore **unverified**, not failed.
