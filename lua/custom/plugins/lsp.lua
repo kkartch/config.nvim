@@ -148,6 +148,14 @@ return {
               vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled { bufnr = event.buf })
             end, '[T]oggle Inlay [H]ints')
           end
+
+          -- Ask the server to reindex. Expert does not pick up newly created
+          -- modules incrementally -- it only knows the files that existed when
+          -- it indexed -- so a new file stays invisible until a reindex.
+          local server_cmds = vim.tbl_get(client or {}, 'server_capabilities', 'executeCommandProvider', 'commands') or {}
+          if vim.tbl_contains(server_cmds, 'Reindex') then
+            map('<leader>ri', '<CMD>LspReindex<CR>', 'Re[i]ndex project')
+          end
         end,
       })
 
@@ -157,6 +165,104 @@ return {
           border = 'rounded',
         },
       })
+
+      -- Neovim core ships none of :LspRestart/:LspStop/:LspInfo -- they come
+      -- from nvim-lspconfig, which this config replaces. Rebuild the few that
+      -- are actually useful on the native API.
+      local function target_clients(name)
+        if name and name ~= '' then
+          return vim.lsp.get_clients { name = name }
+        end
+        return vim.lsp.get_clients { bufnr = vim.api.nvim_get_current_buf() }
+      end
+
+      local function complete_clients()
+        local names = {}
+        for _, client in ipairs(vim.lsp.get_clients()) do
+          names[client.name] = true
+        end
+        return vim.tbl_keys(names)
+      end
+
+      vim.api.nvim_create_user_command('LspStop', function(opts)
+        local clients = target_clients(opts.args)
+        if #clients == 0 then
+          return vim.notify('No matching LSP clients', vim.log.levels.WARN)
+        end
+        for _, client in ipairs(clients) do
+          client:stop(true)
+        end
+      end, { nargs = '?', complete = complete_clients, desc = 'Stop LSP client(s)' })
+
+      vim.api.nvim_create_user_command('LspRestart', function(opts)
+        local clients = target_clients(opts.args)
+        if #clients == 0 then
+          return vim.notify('No matching LSP clients', vim.log.levels.WARN)
+        end
+
+        -- Remember which buffers were attached so they can be re-attached.
+        local names, buffers = {}, {}
+        for _, client in ipairs(clients) do
+          table.insert(names, client.name)
+          for buf in pairs(client.attached_buffers or {}) do
+            if vim.api.nvim_buf_is_loaded(buf) then
+              buffers[buf] = true
+            end
+          end
+          client:stop(true)
+        end
+
+        -- Re-attaching before the old client exits would be ignored, so wait.
+        vim.wait(5000, function()
+          for _, client in ipairs(clients) do
+            if not client:is_stopped() then
+              return false
+            end
+          end
+          return true
+        end, 100)
+
+        -- `vim.lsp.enable` attaches on FileType, so replaying it re-attaches.
+        for buf in pairs(buffers) do
+          if vim.api.nvim_buf_is_valid(buf) then
+            vim.api.nvim_exec_autocmds('FileType', { buffer = buf })
+          end
+        end
+        vim.notify('Restarted: ' .. table.concat(names, ', '))
+      end, { nargs = '?', complete = complete_clients, desc = 'Restart LSP client(s)' })
+
+      vim.api.nvim_create_user_command('LspInfo', 'checkhealth vim.lsp', { desc = 'LSP status' })
+
+      vim.api.nvim_create_user_command('LspReindex', function()
+        local buf = vim.api.nvim_get_current_buf()
+        local asked = {}
+        for _, client in ipairs(vim.lsp.get_clients { bufnr = buf }) do
+          local cmds = vim.tbl_get(client, 'server_capabilities', 'executeCommandProvider', 'commands') or {}
+          if vim.tbl_contains(cmds, 'Reindex') then
+            table.insert(asked, client.name)
+            client:request('workspace/executeCommand', { command = 'Reindex', arguments = {} }, function(err)
+              if err then
+                vim.notify('Reindex failed: ' .. tostring(err.message or err), vim.log.levels.ERROR)
+              end
+            end, buf)
+          end
+        end
+        if #asked == 0 then
+          return vim.notify('No attached client supports Reindex', vim.log.levels.WARN)
+        end
+        vim.notify('Reindexing: ' .. table.concat(asked, ', '))
+      end, { desc = 'Ask the language server to reindex the project' })
+
+      -- Nothing rotates lsp.log and it had reached ~800MB. Truncate when it
+      -- gets large; the log is a debugging aid, not a record worth keeping.
+      local log_path = vim.lsp.log.get_filename()
+      local stat = log_path and vim.uv.fs_stat(log_path)
+      if stat and stat.size > 50 * 1024 * 1024 then
+        local fd = vim.uv.fs_open(log_path, 'w', 420)
+        if fd then
+          vim.uv.fs_close(fd)
+        end
+      end
 
       -- LSP servers and clients are able to communicate to each other what features they support.
       --  By default, Neovim doesn't support everything that is in the LSP specification.
