@@ -125,7 +125,7 @@ return {
           position = { line = deleg_lnum - 1, character = name_start - 1 },
         }, function(err, result)
           if err or not result or vim.tbl_isempty(result) then
-            return vim.notify('No delegate target found', vim.log.levels.WARN)
+            return vim.notify('defdelegate: no definition returned', vim.log.levels.WARN)
           end
 
           local items = vim.islist(result) and result or { result }
@@ -146,7 +146,14 @@ return {
             vim.cmd("normal! m'") -- leave a jumplist entry so <C-o> comes back
             vim.lsp.util.show_document(targets[1], client.offset_encoding, { focus = true })
           elseif #targets == 0 then
-            vim.notify('No delegate target found', vim.log.levels.WARN)
+            -- The defdelegate resolved to itself and nothing else, which means
+            -- the server has no record of the target module. Usually that is a
+            -- module added since the project was indexed; Expert does not pick
+            -- those up on its own.
+            vim.notify(
+              'defdelegate: only the definition site resolved -- the target module may not be indexed yet, try :LspReindex',
+              vim.log.levels.WARN
+            )
           else
             -- Genuinely ambiguous, so let the usual picker decide.
             require('telescope.builtin').lsp_definitions()

@@ -97,6 +97,26 @@ the **content of the landed line** rather than line numbers.
 
 **11 pass, 0 fail.** No picker in any case.
 
+## Failure messages
+
+The first real-world use hit `No delegate target found` on
+`defdelegate rename_concept(...), to: ReviseConcept, as: :rename`. The jump logic was correct: the
+server returned only the defdelegate's own site, so the filter emptied the list.
+
+The cause was the Expert limitation documented in
+[2026-09-03](./2026-09-03-expert-reindex-and-lsp-commands.md). `Actions.ReviseConcept` was created the
+same day in commit `06db036e`; the editor session predated the file, and Expert does not index new
+modules on its own. A fresh server resolved it immediately. `:LspReindex` fixes it.
+
+The message now distinguishes the two cases, so this diagnoses itself:
+
+- nothing came back at all -> `defdelegate: no definition returned`
+- only the definition site came back -> `defdelegate: only the definition site resolved -- the target
+  module may not be indexed yet, try :LspReindex`
+
+The second is verified by pointing a `defdelegate` at a module that does not exist, which produces
+exactly that notification and leaves the cursor where it was.
+
 ## Two testing traps worth recording
 
 **Assert on content, not line numbers.** The first test run failed everything because `concepts.ex`
