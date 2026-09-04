@@ -60,6 +60,102 @@ return {
       --    That is to say, every time a new file is opened that is associated with
       --    an lsp (for example, opening `main.rs` is associated with `rust_analyzer`) this
       --    function will be executed to configure the current buffer
+      -- Jump from a `defdelegate` to the function it delegates to.
+      --
+      -- Expert already resolves the delegated target, including `as:` renames,
+      -- but two things stop a plain definition jump from landing there:
+      --   * it also returns the defdelegate itself, and telescope sorts that
+      --     self-reference first, so the jump goes nowhere
+      --   * a multi-line defdelegate returns the same target twice
+      -- So: ask at the function name, drop the self-reference, dedupe.
+      --
+      -- Returns true when it handled the jump, false to fall through to the
+      -- normal definition mapping.
+      local function jump_to_delegate()
+        local bufnr = vim.api.nvim_get_current_buf()
+        local cursor_lnum = vim.api.nvim_win_get_cursor(0)[1]
+
+        local function line_at(lnum)
+          return vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ''
+        end
+
+        local function is_continuation(text)
+          return text:match('^%s*to:') ~= nil or text:match('^%s*as:') ~= nil
+        end
+
+        -- The cursor may be on a `to:`/`as:` continuation line, so walk up to
+        -- the `defdelegate` that owns it.
+        local deleg_lnum, deleg_line
+        for lnum = cursor_lnum, math.max(1, cursor_lnum - 4), -1 do
+          local text = line_at(lnum)
+          if text:match('^%s*defdelegate%s') then
+            deleg_lnum, deleg_line = lnum, text
+            break
+          end
+          if lnum < cursor_lnum and not is_continuation(text) then
+            break
+          end
+        end
+        if not deleg_lnum then
+          return false
+        end
+
+        local _, keyword_end = deleg_line:find('defdelegate%s+')
+        local name_start = keyword_end and deleg_line:find('[%a_]', keyword_end + 1)
+        if not name_start then
+          return false
+        end
+
+        local client = vim.lsp.get_clients({ bufnr = bufnr, method = 'textDocument/definition' })[1]
+        if not client then
+          return false
+        end
+
+        -- How far the statement runs, so results inside it count as the self
+        -- reference rather than as the target.
+        local last_lnum = deleg_lnum
+        while last_lnum < vim.api.nvim_buf_line_count(bufnr)
+          and is_continuation(line_at(last_lnum + 1)) do
+          last_lnum = last_lnum + 1
+        end
+
+        local self_uri = vim.uri_from_bufnr(bufnr)
+        client:request('textDocument/definition', {
+          textDocument = { uri = self_uri },
+          position = { line = deleg_lnum - 1, character = name_start - 1 },
+        }, function(err, result)
+          if err or not result or vim.tbl_isempty(result) then
+            return vim.notify('No delegate target found', vim.log.levels.WARN)
+          end
+
+          local items = vim.islist(result) and result or { result }
+          local seen, targets = {}, {}
+          for _, item in ipairs(items) do
+            local uri = item.uri or item.targetUri
+            local range = item.range or item.targetSelectionRange
+            local line = range and range.start.line or -1
+            local is_self = uri == self_uri and line >= deleg_lnum - 1 and line <= last_lnum - 1
+            local key = string.format('%s:%d:%d', uri, line, range and range.start.character or -1)
+            if not is_self and not seen[key] then
+              seen[key] = true
+              table.insert(targets, item)
+            end
+          end
+
+          if #targets == 1 then
+            vim.cmd("normal! m'") -- leave a jumplist entry so <C-o> comes back
+            vim.lsp.util.show_document(targets[1], client.offset_encoding, { focus = true })
+          elseif #targets == 0 then
+            vim.notify('No delegate target found', vim.log.levels.WARN)
+          else
+            -- Genuinely ambiguous, so let the usual picker decide.
+            require('telescope.builtin').lsp_definitions()
+          end
+        end, bufnr)
+
+        return true
+      end
+
       vim.api.nvim_create_autocmd('LspAttach', {
         group = vim.api.nvim_create_augroup('kickstart-lsp-attach', { clear = true }),
         callback = function(event)
@@ -76,7 +172,11 @@ return {
           -- Jump to the definition of the word under your cursor.
           --  This is where a variable was first declared, or where a function is defined, etc.
           --  To jump back, press <C-t>.
-          map('gd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
+          map('gd', function()
+            if not jump_to_delegate() then
+              require('telescope.builtin').lsp_definitions()
+            end
+          end, '[G]oto [D]efinition')
 
           -- Find references for the word under your cursor.
           map('gr', require('telescope.builtin').lsp_references, '[G]oto [R]eferences')
